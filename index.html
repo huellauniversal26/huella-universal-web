@@ -273,6 +273,30 @@
   }
   .filter-pill.active{ background:var(--gold); border-color:var(--gold); color:var(--gold-text); font-weight:600; }
 
+  .breadcrumb{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-muted);
+    margin-bottom:24px; display:flex; flex-wrap:wrap; align-items:center; gap:6px; min-height:18px;
+  }
+  .breadcrumb button{
+    background:none; border:none; color:var(--text-muted); font-family:inherit; font-size:12px;
+    cursor:pointer; padding:0; text-decoration:underline;
+  }
+  .breadcrumb button:hover{ color:var(--gold); }
+  .breadcrumb .current{ color:var(--gold); }
+  .breadcrumb .sep{ color:var(--surface-line); }
+
+  .nav-grid{ display:grid; gap:16px; grid-template-columns:repeat(2,1fr); margin-bottom:36px; }
+  @media(min-width:640px){ .nav-grid{ grid-template-columns:repeat(3,1fr); } }
+  @media(min-width:900px){ .nav-grid{ grid-template-columns:repeat(4,1fr); } }
+  .nav-card{
+    background:var(--surface); border:1px solid var(--surface-line);
+    padding:20px 16px; text-align:center; cursor:pointer;
+    transition:border-color .2s, transform .2s;
+  }
+  .nav-card:hover{ border-color:var(--gold); transform:translateY(-3px); }
+  .nav-card h4{ font-size:14px; font-weight:600; margin-bottom:4px; font-family:'Work Sans',sans-serif; }
+  .nav-card span{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-muted); }
+
   .product-grid{ display:grid; gap:20px; grid-template-columns:repeat(2,1fr); }
   @media(min-width:760px){ .product-grid{ grid-template-columns:repeat(4,1fr); } }
   .product-card{ background:var(--surface); border:1px solid var(--surface-line); }
@@ -281,8 +305,27 @@
     background:repeating-linear-gradient(45deg, var(--bg-alt) 0 10px, var(--surface) 10px 20px);
     display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px;
     border-bottom:1px solid var(--surface-line);
+    position:relative; overflow:hidden;
   }
   .ph-image span{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-muted); text-align:center; padding:0 10px; }
+  .img-nav{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:26px; height:26px; background:rgba(17,17,17,0.55); border:none;
+    color:var(--text); font-size:15px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    z-index:2; border-radius:50%;
+  }
+  .img-nav:hover{ background:var(--gold); color:var(--gold-text); }
+  .img-nav.prev{ left:6px; }
+  .img-nav.next{ right:6px; }
+  .img-dots{
+    position:absolute; bottom:8px; left:0; right:0;
+    display:flex; justify-content:center; gap:5px; z-index:2;
+  }
+  .img-dot{
+    width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,0.4);
+    cursor:pointer; transition:background .15s, transform .15s;
+  }
+  .img-dot.active{ background:var(--gold); transform:scale(1.3); }
   .product-info{ padding:14px; }
   .product-info h4{ font-size:14px; font-weight:500; margin-bottom:6px; font-family:'Work Sans',sans-serif; text-transform:none; letter-spacing:0; }
   .ref{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-muted); margin-bottom:8px; display:block; }
@@ -452,25 +495,25 @@
     <h2>Categorías</h2>
   </div>
   <div class="cat-grid">
-    <div class="cat-card">
+    <div class="cat-card" data-goto-cat="ropa">
       <svg class="cat-icon" viewBox="0 0 24 24"><path d="M16 4l-4 3-4-3-6 3v4h3v10h14V11h3V7z"/></svg>
-      <h3>Camisas</h3>
-      <span>Ver todas</span>
+      <h3>Ropa</h3>
+      <span>Ver subcategorías</span>
     </div>
-    <div class="cat-card">
-      <svg class="cat-icon" viewBox="0 0 24 24"><path d="M6 2l1 6-2 14h4l2-11 2 11h4l-2-14 1-6z"/></svg>
-      <h3>Jeans y pantalones</h3>
-      <span>Ver todos</span>
+    <div class="cat-card" data-goto-cat="ropa deportiva">
+      <svg class="cat-icon" viewBox="0 0 24 24"><path d="M8 3l-5 3v5h3v10h12V11h3V6l-5-3-3 2h-2z"/></svg>
+      <h3>Ropa Deportiva</h3>
+      <span>Ver subcategorías</span>
     </div>
-    <div class="cat-card">
+    <div class="cat-card" data-goto-cat="calzado">
       <svg class="cat-icon" viewBox="0 0 24 24"><path d="M3 18c0-2 2-3 4-3l3-6h5l1 4c2 0 5 1 5 5v1H3z"/></svg>
       <h3>Calzado</h3>
-      <span>Ver todo</span>
+      <span>Ver subcategorías</span>
     </div>
-    <div class="cat-card">
+    <div class="cat-card" data-goto-cat="accesorios">
       <svg class="cat-icon" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
       <h3>Accesorios</h3>
-      <span>Ver todos</span>
+      <span>Ver subcategorías</span>
     </div>
   </div>
 </section>
@@ -483,9 +526,8 @@
     <p>Precios de detal visibles. Para precio al por mayor, escríbenos por WhatsApp con la cantidad que necesitas.</p>
   </div>
 
-  <div class="filter-row" id="filterRow">
-    <span class="filter-pill active" data-cat="todos">Todos</span>
-  </div>
+  <div class="breadcrumb" id="catalogBreadcrumb"></div>
+  <div class="nav-grid" id="catalogNav"></div>
 
   <div class="product-grid" id="productGrid">
     <div class="cat-state" id="catState">Cargando catálogo…</div>
@@ -610,17 +652,29 @@
   1. Crea una hoja de Google Sheets con EXACTAMENTE estas columnas
      en la primera fila (mismos nombres, sin tildes):
 
-     nombre | categoria | color | tallas_disponibles | referencia | precio_detal | precio_mayorista | imagen_url | disponible | link_pago_mercadopago | link_pago_payu
+     nombre | categoria | subcategoria | color | tallas_disponibles | referencia | precio_detal | precio_mayorista | imagenes_url | disponible | link_pago_mercadopago | link_pago_payu
 
-     - categoria debe ser una de: camisas, jeans, calzado, accesorios
+     - categoria debe ser una de: Ropa, Ropa Deportiva, Accesorios, Calzado
+     - subcategoria depende de la categoria:
+         Ropa: Jeans nacional, Jeans importado, Bermudas, Driles, Yoguer,
+               Camuflados, Busos importados, Busos extragrandes,
+               Camibuzos, Camisas manga larga, Camisas manga corta
+         Ropa Deportiva: Pantalonetas importadas, Sudaderas, Busos deportivos
+         Accesorios: Relojes, Gafas, Gorras, Bolsos, Carrieles, Lociones
+         Calzado: Crocs, Sandalias multimarcas, Zapatillas, Sintéticas / guayos
+       Si falta categoria o subcategoria en una fila, ese producto no
+       aparece en la web (la navegación es Categoría → Subcategoría → Productos).
      - color: el color de esa prenda o par (ej. Negro, Blanco, Azul)
      - tallas_disponibles: tallas separadas por coma, ej. "S, M, L, XL"
        o "38, 39, 40, 41". Si el mismo producto viene en varios colores,
        usa una fila por color, cada una con sus propias tallas y foto.
      - disponible debe ser: si  ó  no
-     - imagen_url: link directo a la foto (subida a Google Drive con
-       acceso "cualquiera con el link", Imgur, o donde la tengas
-       alojada). Si lo dejas vacío, se muestra el espacio de ejemplo.
+     - imagenes_url: uno o varios links de foto separados por coma
+       (ej. "link1, link2, link3") — un link por cada ángulo de la
+       prenda. Súbelas a Google Drive con acceso "cualquiera con el
+       link" (o Imgur) y pega los links en ese orden. Si pones más
+       de una, en la web aparecen flechas y puntos para pasar entre
+       fotos. Si lo dejas vacío, se muestra el espacio de ejemplo.
      - precio_mayorista es opcional (puedes dejarlo vacío y en la
        web dirá "Pregúntanos por WhatsApp")
      - link_pago_mercadopago / link_pago_payu: opcional. Genera un
@@ -644,15 +698,65 @@
 <script>
   const SHEET_CSV_URL = "PEGA_AQUI_TU_LINK_CSV";
 
-  const CATEGORY_LABELS = {
-    camisas: "Camisas",
-    jeans: "Jeans y pantalones",
-    calzado: "Calzado",
-    accesorios: "Accesorios"
+  // Taxonomía de categorías y subcategorías. Las claves están en
+  // minúsculas sin tildes para comparar de forma flexible con lo que
+  // el usuario escriba en la hoja (ver normalize()).
+  const TAXONOMY = {
+    "ropa": {
+      label: "Ropa",
+      subs: {
+        "jeans nacional": "Jeans nacional",
+        "jeans importado": "Jeans importado",
+        "bermudas": "Bermudas",
+        "driles": "Driles",
+        "yoguer": "Yoguer",
+        "camuflados": "Camuflados",
+        "busos importados": "Busos importados",
+        "busos extragrandes": "Busos extragrandes",
+        "camibuzos": "Camibuzos",
+        "camisas manga larga": "Camisas manga larga",
+        "camisas manga corta": "Camisas manga corta"
+      }
+    },
+    "ropa deportiva": {
+      label: "Ropa Deportiva",
+      subs: {
+        "pantalonetas importadas": "Pantalonetas importadas",
+        "sudaderas": "Sudaderas",
+        "busos deportivos": "Busos deportivos"
+      }
+    },
+    "accesorios": {
+      label: "Accesorios",
+      subs: {
+        "relojes": "Relojes",
+        "gafas": "Gafas",
+        "gorras": "Gorras",
+        "bolsos": "Bolsos",
+        "carrieles": "Carrieles",
+        "lociones": "Lociones"
+      }
+    },
+    "calzado": {
+      label: "Calzado",
+      subs: {
+        "crocs": "Crocs",
+        "sandalias multimarcas": "Sandalias multimarcas",
+        "zapatillas": "Zapatillas",
+        "sinteticas / guayos": "Sintéticas / guayos"
+      }
+    }
   };
 
+  function normalize(s){
+    return (s || '').toString().trim().toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  }
+
   let allProducts = [];
-  let activeFilter = "todos";
+  // Estado de navegación: null = mostrando categorías; luego categoría; luego subcategoría
+  const nav = { categoria: null, subcategoria: null };
 
   function parseCSV(text){
     // Parser sencillo que respeta comas dentro de comillas
@@ -694,47 +798,139 @@
     return '$' + n.toLocaleString('es-CO');
   }
 
-  function renderFilters(products){
-    const cats = [...new Set(products.map(p => p.categoria).filter(Boolean))];
-    const row = document.getElementById('filterRow');
-    row.innerHTML = '<span class="filter-pill active" data-cat="todos">Todos</span>' +
-      cats.map(c => `<span class="filter-pill" data-cat="${c}">${CATEGORY_LABELS[c] || c}</span>`).join('');
-    row.querySelectorAll('.filter-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        row.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        activeFilter = pill.dataset.cat;
-        renderProducts();
-      });
-    });
+  function goToCategoria(catKey){
+    nav.categoria = catKey;
+    nav.subcategoria = null;
+    renderCatalogView();
+    document.getElementById('catalogo').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+  function goToSubcategoria(subKey){
+    nav.subcategoria = subKey;
+    renderCatalogView();
+  }
+  function goToRoot(){
+    nav.categoria = null;
+    nav.subcategoria = null;
+    renderCatalogView();
+  }
+
+  function renderBreadcrumb(){
+    const el = document.getElementById('catalogBreadcrumb');
+    if (!nav.categoria){
+      el.innerHTML = '<span class="current">Categorías</span>';
+      return;
+    }
+    const catInfo = TAXONOMY[nav.categoria];
+    let html = `<button data-nav="root">Categorías</button><span class="sep">/</span>`;
+    if (!nav.subcategoria){
+      html += `<span class="current">${catInfo ? catInfo.label : nav.categoria}</span>`;
+    } else {
+      html += `<button data-nav="categoria">${catInfo ? catInfo.label : nav.categoria}</button><span class="sep">/</span>`;
+      html += `<span class="current">${catInfo && catInfo.subs[nav.subcategoria] ? catInfo.subs[nav.subcategoria] : nav.subcategoria}</span>`;
+    }
+    el.innerHTML = html;
+  }
+
+  function renderCatalogView(){
+    renderBreadcrumb();
+    const navGrid = document.getElementById('catalogNav');
+    const productGrid = document.getElementById('productGrid');
+
+    // Paso 1: sin categoría elegida -> mostrar categorías
+    if (!nav.categoria){
+      const cats = Object.keys(TAXONOMY);
+      navGrid.style.display = 'grid';
+      navGrid.innerHTML = cats.map(key => {
+        const count = allProducts.filter(p => normalize(p.categoria) === key).length;
+        return `<div class="nav-card" data-goto-cat="${key}"><h4>${TAXONOMY[key].label}</h4><span>${count} producto${count === 1 ? '' : 's'}</span></div>`;
+      }).join('');
+      productGrid.innerHTML = '';
+      return;
+    }
+
+    // Paso 2: categoría elegida, sin subcategoría -> mostrar subcategorías
+    if (!nav.subcategoria){
+      const catInfo = TAXONOMY[nav.categoria];
+      const subKeys = catInfo ? Object.keys(catInfo.subs) : [];
+      navGrid.style.display = 'grid';
+      navGrid.innerHTML = subKeys.map(key => {
+        const count = allProducts.filter(p => normalize(p.categoria) === nav.categoria && normalize(p.subcategoria) === key).length;
+        return `<div class="nav-card" data-goto-sub="${key}"><h4>${catInfo.subs[key]}</h4><span>${count} producto${count === 1 ? '' : 's'}</span></div>`;
+      }).join('');
+      productGrid.innerHTML = '';
+      return;
+    }
+
+    // Paso 3: categoría y subcategoría elegidas -> mostrar productos
+    navGrid.style.display = 'none';
+    navGrid.innerHTML = '';
+    renderProducts();
+  }
+
+  document.getElementById('catalogBreadcrumb').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-nav]');
+    if (!btn) return;
+    if (btn.dataset.nav === 'root') goToRoot();
+    else if (btn.dataset.nav === 'categoria'){ nav.subcategoria = null; renderCatalogView(); }
+  });
+
+  document.getElementById('catalogNav').addEventListener('click', (e) => {
+    const catCard = e.target.closest('[data-goto-cat]');
+    const subCard = e.target.closest('[data-goto-sub]');
+    if (catCard) goToCategoria(catCard.dataset.gotoCat);
+    else if (subCard) goToSubcategoria(subCard.dataset.gotoSub);
+  });
+
+  // Tarjetas de la sección "Categorías" (arriba, junto al hero)
+  document.querySelectorAll('#categorias [data-goto-cat]').forEach(card => {
+    card.addEventListener('click', () => goToCategoria(normalize(card.dataset.gotoCat)));
+  });
 
   const selection = {}; // { productId: { talla, qty } }
   let cart = []; // { id, nombre, referencia, color, talla, precio_detal, imagen_url, qty }
 
   function renderProducts(){
     const grid = document.getElementById('productGrid');
-    const list = activeFilter === 'todos'
-      ? allProducts
-      : allProducts.filter(p => p.categoria === activeFilter);
+    const list = allProducts.filter(p =>
+      normalize(p.categoria) === nav.categoria &&
+      normalize(p.subcategoria) === nav.subcategoria
+    );
 
     if (!list.length){
-      grid.innerHTML = '<div class="cat-state">No hay productos en esta categoría todavía.</div>';
+      grid.innerHTML = '<div class="cat-state">No hay productos en esta subcategoría todavía.</div>';
       return;
     }
 
     grid.innerHTML = list.map(p => {
       const disponible = (p.disponible || 'si').toLowerCase() !== 'no';
-      const img = p.imagen_url
-        ? `<img src="${p.imagen_url}" alt="${p.nombre}" style="width:100%;height:100%;object-fit:cover;">`
-        : `<span>AQUÍ TU FOTO<br>(fondo blanco o neutro)</span>`;
+      const images = (p.imagenes_url || p.imagen_url || '')
+        .split(',')
+        .map(u => u.trim())
+        .filter(Boolean);
       const tallas = (p.tallas_disponibles || '')
         .split(',')
         .map(t => t.trim())
         .filter(Boolean);
 
-      if (!selection[p._id]) selection[p._id] = { talla: tallas.length ? null : '', qty: 1 };
+      if (!selection[p._id]) selection[p._id] = { talla: tallas.length ? null : '', qty: 1, imgIndex: 0 };
       const sel = selection[p._id];
+      if (sel.imgIndex === undefined) sel.imgIndex = 0;
+
+      let img;
+      if (images.length){
+        const current = images[sel.imgIndex] || images[0];
+        img = `<img src="${current}" alt="${p.nombre}" style="width:100%;height:100%;object-fit:cover;">`;
+        if (images.length > 1){
+          img += `
+            <button class="img-nav prev" data-id="${p._id}" type="button">‹</button>
+            <button class="img-nav next" data-id="${p._id}" type="button">›</button>
+            <div class="img-dots" data-id="${p._id}">
+              ${images.map((_, i) => `<span class="img-dot ${i === sel.imgIndex ? 'active' : ''}" data-idx="${i}"></span>`).join('')}
+            </div>`;
+        }
+      } else {
+        img = `<span>AQUÍ TU FOTO<br>(fondo blanco o neutro)</span>`;
+      }
 
       const tallasHTML = tallas.length
         ? `<div class="size-row" data-id="${p._id}">${tallas.map(t =>
@@ -781,6 +977,25 @@
 
   // Selección de talla / cantidad (delegación de eventos)
   document.getElementById('productGrid').addEventListener('click', (e) => {
+    const prevBtn = e.target.closest('.img-nav.prev');
+    const nextBtn = e.target.closest('.img-nav.next');
+    const dot = e.target.closest('.img-dot');
+    if (prevBtn || nextBtn){
+      const id = (prevBtn || nextBtn).dataset.id;
+      const p = allProducts.find(x => String(x._id) === String(id));
+      const images = (p.imagenes_url || p.imagen_url || '').split(',').map(u => u.trim()).filter(Boolean);
+      const sel = selection[id];
+      const dir = nextBtn ? 1 : -1;
+      sel.imgIndex = (sel.imgIndex + dir + images.length) % images.length;
+      renderProducts();
+      return;
+    }
+    if (dot){
+      const id = dot.closest('.img-dots').dataset.id;
+      selection[id].imgIndex = parseInt(dot.dataset.idx, 10);
+      renderProducts();
+      return;
+    }
     const pill = e.target.closest('.size-pill');
     if (pill){
       const id = pill.closest('.size-row').dataset.id;
@@ -811,13 +1026,14 @@
   function addToCart(p, talla, qty){
     const key = p._id + '|' + talla;
     const existing = cart.find(c => c.key === key);
+    const images = (p.imagenes_url || p.imagen_url || '').split(',').map(u => u.trim()).filter(Boolean);
     if (existing){
       existing.qty += qty;
     } else {
       cart.push({
         key, id: p._id, nombre: p.nombre, referencia: p.referencia,
         color: p.color, talla, precio_detal: p.precio_detal,
-        imagen_url: p.imagen_url, qty
+        imagen_url: images[0] || '', qty
       });
     }
     renderCart();
@@ -962,8 +1178,7 @@
       const text = await res.text();
       const rows = parseCSV(text);
       allProducts = rowsToProducts(rows).map((p, i) => ({ ...p, _id: i }));
-      renderFilters(allProducts);
-      renderProducts();
+      renderCatalogView();
     } catch (err){
       state.textContent = 'No se pudo cargar el catálogo. Revisa que el link de Google Sheets esté publicado correctamente.';
       state.classList.add('error');
