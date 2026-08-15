@@ -409,6 +409,9 @@
     font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-muted);
     border:1px solid var(--surface-line); padding:3px 7px; border-radius:2px;
   }
+  .size-pill.disabled{
+    opacity:0.35; text-decoration:line-through; cursor:not-allowed;
+  }
   .out-of-stock{ opacity:0.45; }
   .out-badge{
     position:absolute; top:8px; left:8px;
@@ -652,7 +655,13 @@
   1. Crea una hoja de Google Sheets con EXACTAMENTE estas columnas
      en la primera fila (mismos nombres, sin tildes):
 
-     nombre | categoria | subcategoria | color | tallas_disponibles | referencia | precio_detal | precio_mayorista | imagenes_url | disponible | link_pago_mercadopago | link_pago_payu
+     nombre | categoria | subcategoria | color | referencia | talla | stock | precio_detal | precio_mayorista | imagenes_url | disponible | link_pago_mercadopago | link_pago_payu
+
+     Cada FILA es un diseño en UNA talla (no un producto completo).
+     Si te llegan 50 jeans en 5 diseños con 5 tallas cada uno, son 25
+     filas — una por cada combinación diseño+talla. La web las agrupa
+     sola en 5 tarjetas de producto (una por diseño), mostrando todas
+     sus tallas con el stock de cada una.
 
      - categoria debe ser una de: Ropa, Ropa Deportiva, Accesorios, Calzado
      - subcategoria depende de la categoria:
@@ -662,27 +671,35 @@
          Ropa Deportiva: Pantalonetas importadas, Sudaderas, Busos deportivos
          Accesorios: Relojes, Gafas, Gorras, Bolsos, Carrieles, Lociones
          Calzado: Crocs, Sandalias multimarcas, Zapatillas, Sintéticas / guayos
-       Si falta categoria o subcategoria en una fila, ese producto no
+       Si falta categoria o subcategoria en una fila, ese diseño no
        aparece en la web (la navegación es Categoría → Subcategoría → Productos).
-     - color: el color de esa prenda o par (ej. Negro, Blanco, Azul)
-     - tallas_disponibles: tallas separadas por coma, ej. "S, M, L, XL"
-       o "38, 39, 40, 41". Si el mismo producto viene en varios colores,
-       usa una fila por color, cada una con sus propias tallas y foto.
-     - disponible debe ser: si  ó  no
+     - color: lo que distingue a ese diseño (ej. "Diseño 1", "Azul
+       clásico") — igual en todas las filas de ese diseño.
+     - referencia: código del DISEÑO (ver hoja de Excel, pestaña
+       "Categorías", para el prefijo por subcategoría) — igual en
+       todas las filas de ese diseño. Ej. JNA-001
+     - talla: la talla específica de ESA fila (28, 30, M, XL, etc.)
+     - stock: cuántas unidades hay de ESA talla — cuando llega a 0,
+       esa talla se muestra tachada y no se puede elegir en la web.
+       Cuando TODAS las tallas de un diseño llegan a 0, ese diseño se
+       marca "Agotado" automáticamente.
+     - disponible debe ser: si  ó  no (para ocultar un diseño a mano
+       aunque tenga stock, ej. producto descontinuado)
      - imagenes_url: uno o varios links de foto separados por coma
        (ej. "link1, link2, link3") — un link por cada ángulo de la
-       prenda. Súbelas a Google Drive con acceso "cualquiera con el
-       link" (o Imgur) y pega los links en ese orden. Si pones más
-       de una, en la web aparecen flechas y puntos para pasar entre
-       fotos. Si lo dejas vacío, se muestra el espacio de ejemplo.
+       prenda. Solo hace falta ponerlas en una fila de ese diseño, no
+       en todas. Súbelas a Google Drive con acceso "cualquiera con el
+       link" (o Imgur). Si pones más de una, en la web aparecen
+       flechas y puntos para pasar entre fotos.
      - precio_mayorista es opcional (puedes dejarlo vacío y en la
        web dirá "Pregúntanos por WhatsApp")
      - link_pago_mercadopago / link_pago_payu: opcional. Genera un
-       "Link de pago" de precio fijo para ese producto desde tu cuenta
+       "Link de pago" de precio fijo para ese diseño desde tu cuenta
        de Mercado Pago o PayU y pégalo aquí. Si existe, en la web
-       aparece un botón "Comprar ahora con tarjeta" para ese producto.
-       Para pedidos con varios productos, el cliente sigue usando el
-       carrito → WhatsApp (esto no requiere servidor).
+       aparece un botón "Comprar ahora con tarjeta". Para pedidos con
+       varios productos, el cliente sigue usando el carrito → WhatsApp
+       (esto no requiere servidor).
+
 
   2. En Google Sheets: Archivo → Compartir → Publicar en la Web
      → selecciona la hoja → formato "Valores separados por comas (.csv)"
@@ -696,7 +713,7 @@
   ============================================================
 -->
 <script>
-  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOj24Kz7KJEekrQTZ8zQxp0hZGh_5O_sGBzzFBYIukL2YEudw260umvNjSdK4OAQ/pub?gid=1409351174&single=true&output=csv";
+  const SHEET_CSV_URL = "PEGA_AQUI_TU_LINK_CSV";
 
   // Taxonomía de categorías y subcategorías. Las claves están en
   // minúsculas sin tildes para comparar de forma flexible con lo que
@@ -796,6 +813,40 @@
     const n = parseInt(String(v).replace(/[^\d]/g, ''), 10);
     if (isNaN(n)) return '';
     return '$' + n.toLocaleString('es-CO');
+  }
+
+  // Cada fila de la hoja es una variante (un diseño + una talla + su stock).
+  // Esta función las agrupa por 'referencia' para armar una sola tarjeta de
+  // producto por diseño, con todas sus tallas y el stock de cada una.
+  function groupProducts(rows){
+    const map = new Map();
+    rows.forEach(r => {
+      const key = r.referencia || r.nombre;
+      if (!key) return;
+      if (!map.has(key)){
+        map.set(key, {
+          _id: map.size,
+          referencia: r.referencia,
+          nombre: r.nombre,
+          categoria: r.categoria,
+          subcategoria: r.subcategoria,
+          color: r.color,
+          precio_detal: r.precio_detal,
+          precio_mayorista: r.precio_mayorista,
+          imagenes_url: r.imagenes_url || r.imagen_url,
+          disponible: r.disponible,
+          link_pago_mercadopago: r.link_pago_mercadopago,
+          link_pago_payu: r.link_pago_payu,
+          variants: []
+        });
+      }
+      const group = map.get(key);
+      const stockNum = parseInt(String(r.stock).replace(/[^\d-]/g, ''), 10);
+      if (r.talla){
+        group.variants.push({ talla: r.talla, stock: isNaN(stockNum) ? 0 : stockNum });
+      }
+    });
+    return Array.from(map.values());
   }
 
   function goToCategoria(catKey){
@@ -902,17 +953,16 @@
     }
 
     grid.innerHTML = list.map(p => {
-      const disponible = (p.disponible || 'si').toLowerCase() !== 'no';
+      const hasStock = p.variants.some(v => v.stock > 0);
+      const manualDisponible = (p.disponible || 'si').toLowerCase() !== 'no';
+      const disponible = manualDisponible && hasStock;
+
       const images = (p.imagenes_url || p.imagen_url || '')
         .split(',')
         .map(u => u.trim())
         .filter(Boolean);
-      const tallas = (p.tallas_disponibles || '')
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean);
 
-      if (!selection[p._id]) selection[p._id] = { talla: tallas.length ? null : '', qty: 1, imgIndex: 0 };
+      if (!selection[p._id]) selection[p._id] = { talla: null, qty: 1, imgIndex: 0 };
       const sel = selection[p._id];
       if (sel.imgIndex === undefined) sel.imgIndex = 0;
 
@@ -932,13 +982,18 @@
         img = `<span>AQUÍ TU FOTO<br>(fondo blanco o neutro)</span>`;
       }
 
-      const tallasHTML = tallas.length
-        ? `<div class="size-row" data-id="${p._id}">${tallas.map(t =>
-            `<span class="size-pill ${sel.talla === t ? 'selected' : ''}" data-talla="${t}">${t}</span>`
-          ).join('')}</div>`
+      const tallasHTML = p.variants.length
+        ? `<div class="size-row" data-id="${p._id}">${p.variants.map(v => {
+            const outOfStock = v.stock <= 0;
+            return `<span class="size-pill ${sel.talla === v.talla ? 'selected' : ''} ${outOfStock ? 'disabled' : ''}" data-talla="${v.talla}" ${outOfStock ? 'data-disabled="1"' : ''}>${v.talla}</span>`;
+          }).join('')}</div>`
         : '';
 
-      const canAdd = disponible && (tallas.length === 0 || sel.talla);
+      const selectedVariant = p.variants.find(v => v.talla === sel.talla);
+      const maxQty = selectedVariant ? selectedVariant.stock : 1;
+      if (selectedVariant && sel.qty > maxQty) sel.qty = Math.max(1, maxQty);
+
+      const canAdd = disponible && selectedVariant && selectedVariant.stock > 0;
 
       return `
         <div class="product-card ${disponible ? '' : 'out-of-stock'}" style="position:relative;">
@@ -961,15 +1016,16 @@
                 <span>${sel.qty}</span>
                 <button class="qty-plus" type="button">+</button>
               </div>
+              ${selectedVariant ? `<span style="font-size:10px; color:var(--text-muted); margin-left:8px;">${selectedVariant.stock} disponibles</span>` : ''}
             </div>
             <button class="add-cart-btn" data-id="${p._id}" ${canAdd ? '' : 'disabled'}>
-              ${tallas.length && !sel.talla ? 'Elige una talla' : 'Agregar al carrito'}
+              ${!sel.talla ? 'Elige una talla' : 'Agregar al carrito'}
             </button>
             ${(p.link_pago_mercadopago || p.link_pago_payu) ? `
             <a class="buy-now-btn" href="${p.link_pago_mercadopago || p.link_pago_payu}" target="_blank" rel="noopener">
               Comprar ahora con tarjeta
             </a>
-            ${tallas.length ? `<span style="font-size:10px; color:var(--text-muted); display:block; margin-top:6px; text-align:center;">Escribe la talla (${sel.talla || tallas[0]}) en el campo de referencia del pago</span>` : ''}` : ''}` : ''}
+            <span style="font-size:10px; color:var(--text-muted); display:block; margin-top:6px; text-align:center;">Escribe la talla (${sel.talla || p.variants[0].talla}) en el campo de referencia del pago</span>` : ''}` : ''}
           </div>
         </div>`;
     }).join('');
@@ -998,8 +1054,10 @@
     }
     const pill = e.target.closest('.size-pill');
     if (pill){
+      if (pill.dataset.disabled === '1') return;
       const id = pill.closest('.size-row').dataset.id;
       selection[id].talla = pill.dataset.talla;
+      selection[id].qty = 1;
       renderProducts();
       return;
     }
@@ -1007,8 +1065,11 @@
     const plus = e.target.closest('.qty-plus');
     if (minus || plus){
       const id = e.target.closest('.qty-stepper').dataset.id;
+      const p = allProducts.find(x => String(x._id) === String(id));
       const sel = selection[id];
-      sel.qty = Math.max(1, sel.qty + (plus ? 1 : -1));
+      const variant = p.variants.find(v => v.talla === sel.talla);
+      const max = variant ? variant.stock : 1;
+      sel.qty = Math.min(max, Math.max(1, sel.qty + (plus ? 1 : -1)));
       renderProducts();
       return;
     }
@@ -1173,11 +1234,12 @@
       return;
     }
     try {
-      const res = await fetch(SHEET_CSV_URL);
+      const cacheBuster = (SHEET_CSV_URL.includes('?') ? '&' : '?') + '_ts=' + Date.now();
+      const res = await fetch(SHEET_CSV_URL + cacheBuster, { cache: 'no-store' });
       if (!res.ok) throw new Error('No se pudo cargar la hoja');
       const text = await res.text();
       const rows = parseCSV(text);
-      allProducts = rowsToProducts(rows).map((p, i) => ({ ...p, _id: i }));
+      allProducts = groupProducts(rowsToProducts(rows));
       renderCatalogView();
     } catch (err){
       state.textContent = 'No se pudo cargar el catálogo. Revisa que el link de Google Sheets esté publicado correctamente.';
