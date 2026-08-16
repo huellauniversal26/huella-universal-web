@@ -1183,11 +1183,20 @@
 
   document.getElementById('checkoutBtn').addEventListener('click', () => {
     if (!cart.length) return;
-    let msg = 'Hola, quiero hacer este pedido en Huella Universal:%0A%0A';
+    const lines = ['Hola, quiero hacer este pedido en Huella Universal:', ''];
     cart.forEach(c => {
-      msg += `• ${c.nombre}${c.color ? ' - ' + c.color : ''}${c.talla ? ' - Talla ' + c.talla : ''} x${c.qty} — ${money(c.precio_detal)}%0A`;
+      const sku = `${c.referencia || 'SIN-REF'}-${c.talla || ''}`;
+      lines.push(`• ${c.nombre}${c.color ? ' - ' + c.color : ''}${c.talla ? ' - Talla ' + c.talla : ''} x${c.qty} — ${money(c.precio_detal)}`);
+      lines.push(`  Ref: ${sku}`);
+      if (c.imagen_url){
+        lines.push(`  Foto: ${c.imagen_url}`);
+      }
+      lines.push('');
     });
-    msg += `%0ATotal: ${money(cartTotal())}%0A%0A¿Cómo puedo pagar y coordinar la entrega?`;
+    lines.push(`Total: ${money(cartTotal())}`);
+    lines.push('');
+    lines.push('¿Cómo puedo pagar y coordinar la entrega?');
+    const msg = encodeURIComponent(lines.join('\n'));
     window.open(`https://wa.me/573132252891?text=${msg}`, '_blank');
   });
 
@@ -1202,6 +1211,7 @@
 
     try {
       const items = cart.map(c => ({
+        id: `${c.referencia || ''}-${c.talla || ''}`,
         title: `${c.nombre}${c.color ? ' - ' + c.color : ''}${c.talla ? ' - Talla ' + c.talla : ''}`,
         quantity: c.qty,
         unit_price: parseInt(String(c.precio_detal).replace(/[^\d]/g, ''), 10)
