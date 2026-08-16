@@ -10,10 +10,16 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { items } = req.body || {};
+    const { items, customer } = req.body || {};
 
     if (!Array.isArray(items) || items.length === 0) {
       res.status(400).json({ error: 'El carrito está vacío' });
+      return;
+    }
+
+    if (!customer || !customer.nombre || !customer.cedula || !customer.ciudad ||
+        !customer.direccion || !customer.correo) {
+      res.status(400).json({ error: 'Faltan datos del cliente' });
       return;
     }
 
@@ -25,6 +31,7 @@ module.exports = async function handler(req, res) {
         throw new Error('Producto inválido en el carrito');
       }
       return {
+        id: it.id ? String(it.id).slice(0, 100) : undefined,
         title: String(it.title).slice(0, 250),
         quantity,
         unit_price,
@@ -39,6 +46,11 @@ module.exports = async function handler(req, res) {
 
     const origin = req.headers.origin || `https://${req.headers.host}`;
 
+    // Separar nombre y apellido lo mejor posible para el checkout de MP
+    const nameParts = String(customer.nombre).trim().split(/\s+/);
+    const firstName = nameParts.shift() || '';
+    const lastName = nameParts.join(' ') || firstName;
+
     const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: {
@@ -47,6 +59,14 @@ module.exports = async function handler(req, res) {
       },
       body: JSON.stringify({
         items: mpItems,
+        payer: {
+          name: firstName,
+          surname: lastName,
+          email: customer.correo,
+          phone: { number: String(customer.telefono || '') },
+          identification: { type: 'CC', number: String(customer.cedula) },
+          address: { street_name: customer.direccion },
+        },
         back_urls: {
           success: `${origin}/exito.html`,
           failure: `${origin}/pago-fallido.html`,
@@ -54,6 +74,15 @@ module.exports = async function handler(req, res) {
         },
         auto_return: 'approved',
         statement_descriptor: 'HUELLA UNIVERSAL',
+        notification_url: `${origin}/api/mp-webhook`,
+        metadata: {
+          cliente_nombre: customer.nombre,
+          cliente_cedula: customer.cedula,
+          cliente_ciudad: customer.ciudad,
+          cliente_direccion: customer.direccion,
+          cliente_telefono: customer.telefono,
+          cliente_correo: customer.correo,
+        },
       }),
     });
 

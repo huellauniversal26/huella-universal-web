@@ -166,6 +166,29 @@
   .cart-remove{ background:none; border:none; color:var(--text-muted); font-size:11px; cursor:pointer; text-decoration:underline; padding:0; margin-top:6px; }
   .cart-remove:hover{ color:var(--gold); }
   .cart-foot{ padding:18px 20px 22px; border-top:1px solid var(--surface-line); }
+
+  .checkout-form{ padding:16px 20px 4px; border-top:1px solid var(--surface-line); }
+  .checkout-form h4{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold);
+    text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px;
+  }
+  .form-row{ margin-bottom:10px; }
+  .form-row label{
+    display:block; font-size:11px; color:var(--text-muted); margin-bottom:4px;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .form-row input{
+    width:100%; background:var(--surface); border:1px solid var(--surface-line);
+    color:var(--text); padding:9px 10px; font-family:'Work Sans',sans-serif; font-size:13px;
+    border-radius:var(--radius); box-sizing:border-box;
+  }
+  .form-row input:focus{ outline:none; border-color:var(--gold); }
+  .form-row input.invalid{ border-color:#c0392b; }
+  .form-row-pair{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .form-error{
+    font-size:11px; color:#e07856; margin:4px 0 10px; display:none;
+    font-family:'IBM Plex Mono',monospace;
+  }
   .cart-total-row{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; }
   .cart-total-row span:first-child{ font-family:'Oswald',sans-serif; text-transform:uppercase; font-size:13px; letter-spacing:0.04em; }
   .cart-total-row span:last-child{ font-family:'IBM Plex Mono',monospace; font-size:19px; color:var(--gold); }
@@ -458,6 +481,38 @@
   </div>
   <div class="cart-body" id="cartBody">
     <div class="cart-empty">Tu carrito está vacío</div>
+  </div>
+  <div class="checkout-form">
+    <h4>Datos para la entrega</h4>
+    <div class="form-row-pair">
+      <div class="form-row">
+        <label for="custNombre">Nombre y apellido</label>
+        <input type="text" id="custNombre" autocomplete="name">
+      </div>
+      <div class="form-row">
+        <label for="custCedula">Cédula</label>
+        <input type="text" id="custCedula" inputmode="numeric" autocomplete="off">
+      </div>
+    </div>
+    <div class="form-row-pair">
+      <div class="form-row">
+        <label for="custCiudad">Ciudad</label>
+        <input type="text" id="custCiudad" autocomplete="address-level2">
+      </div>
+      <div class="form-row">
+        <label for="custTelefono">Teléfono</label>
+        <input type="tel" id="custTelefono" autocomplete="tel">
+      </div>
+    </div>
+    <div class="form-row">
+      <label for="custDireccion">Dirección de entrega</label>
+      <input type="text" id="custDireccion" autocomplete="street-address">
+    </div>
+    <div class="form-row">
+      <label for="custCorreo">Correo electrónico</label>
+      <input type="email" id="custCorreo" autocomplete="email">
+    </div>
+    <p class="form-error" id="custFormError">Completa todos los datos para continuar con tu pedido.</p>
   </div>
   <div class="cart-foot">
     <div class="cart-total-row">
@@ -1181,8 +1236,59 @@
   document.getElementById('cartClose').addEventListener('click', closeCart);
   document.getElementById('cartOverlay').addEventListener('click', closeCart);
 
+  // ---- Datos del cliente (nombre, cédula, ciudad, dirección, correo, teléfono) ----
+  function getCustomerFieldEls(){
+    return {
+      nombre: document.getElementById('custNombre'),
+      cedula: document.getElementById('custCedula'),
+      ciudad: document.getElementById('custCiudad'),
+      telefono: document.getElementById('custTelefono'),
+      direccion: document.getElementById('custDireccion'),
+      correo: document.getElementById('custCorreo'),
+    };
+  }
+
+  function validateCustomerForm(){
+    const fields = getCustomerFieldEls();
+    const errorBox = document.getElementById('custFormError');
+    let firstInvalid = null;
+    let valid = true;
+
+    Object.entries(fields).forEach(([key, el]) => {
+      const val = el.value.trim();
+      const empty = !val;
+      const badEmail = key === 'correo' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+      if (empty || badEmail){
+        valid = false;
+        el.classList.add('invalid');
+        if (!firstInvalid) firstInvalid = el;
+      } else {
+        el.classList.remove('invalid');
+      }
+    });
+
+    errorBox.style.display = valid ? 'none' : 'block';
+    if (!valid && firstInvalid){
+      firstInvalid.focus();
+      firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (!valid) return null;
+    return {
+      nombre: fields.nombre.value.trim(),
+      cedula: fields.cedula.value.trim(),
+      ciudad: fields.ciudad.value.trim(),
+      telefono: fields.telefono.value.trim(),
+      direccion: fields.direccion.value.trim(),
+      correo: fields.correo.value.trim(),
+    };
+  }
+
   document.getElementById('checkoutBtn').addEventListener('click', () => {
     if (!cart.length) return;
+    const customer = validateCustomerForm();
+    if (!customer) return;
+
     const lines = ['Hola, quiero hacer este pedido en Huella Universal:', ''];
     cart.forEach(c => {
       const sku = `${c.referencia || 'SIN-REF'}-${c.talla || ''}`;
@@ -1195,6 +1301,14 @@
     });
     lines.push(`Total: ${money(cartTotal())}`);
     lines.push('');
+    lines.push('Mis datos para la entrega:');
+    lines.push(`Nombre: ${customer.nombre}`);
+    lines.push(`Cédula: ${customer.cedula}`);
+    lines.push(`Ciudad: ${customer.ciudad}`);
+    lines.push(`Dirección: ${customer.direccion}`);
+    lines.push(`Teléfono: ${customer.telefono}`);
+    lines.push(`Correo: ${customer.correo}`);
+    lines.push('');
     lines.push('¿Cómo puedo pagar y coordinar la entrega?');
     const msg = encodeURIComponent(lines.join('\n'));
     window.open(`https://wa.me/573132252891?text=${msg}`, '_blank');
@@ -1202,6 +1316,8 @@
 
   document.getElementById('payCardBtn').addEventListener('click', async () => {
     if (!cart.length) return;
+    const customer = validateCustomerForm();
+    if (!customer) return;
     const btn = document.getElementById('payCardBtn');
     const errBox = document.getElementById('payError');
     errBox.style.display = 'none';
@@ -1220,7 +1336,7 @@
       const res = await fetch('/api/create-preference', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
+        body: JSON.stringify({ items, customer })
       });
       const data = await res.json();
 
