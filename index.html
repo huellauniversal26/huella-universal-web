@@ -436,6 +436,60 @@
     opacity:0.35; text-decoration:line-through; cursor:not-allowed;
   }
   .out-of-stock{ opacity:0.45; }
+
+  /* ---------- Marca, colores y descuento ---------- */
+  .product-brand{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--gold);
+    text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:2px;
+  }
+  .product-name-link{ cursor:pointer; }
+  .product-name-link:hover{ color:var(--gold); }
+  .color-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .color-pill{
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-muted);
+    border:1px solid var(--surface-line); padding:3px 8px; border-radius:2px;
+    cursor:pointer; user-select:none; transition:border-color .15s, color .15s;
+  }
+  .color-pill.selected{ border-color:var(--gold); color:var(--gold); font-weight:600; }
+  .price-discount-row{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .price-original{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--text-muted);
+    text-decoration:line-through;
+  }
+  .discount-badge{
+    background:var(--gold); color:var(--gold-text); font-family:'IBM Plex Mono',monospace;
+    font-size:10px; font-weight:700; padding:2px 6px; border-radius:2px;
+  }
+  .ph-image.open-detail{ cursor:pointer; }
+
+  /* ---------- Modal de detalle de producto ---------- */
+  .detail-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:90;
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .detail-overlay.open{ opacity:1; pointer-events:auto; }
+  .detail-modal{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-48%);
+    width:92%; max-width:760px; max-height:88vh; overflow-y:auto;
+    background:var(--bg-alt); border:1px solid var(--surface-line); z-index:95;
+    opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+  }
+  .detail-modal.open{ opacity:1; pointer-events:auto; transform:translate(-50%,-50%); }
+  .detail-close{
+    position:absolute; top:14px; right:14px; background:var(--surface);
+    border:1px solid var(--surface-line); color:var(--text); width:34px; height:34px;
+    border-radius:50%; font-size:20px; cursor:pointer; z-index:2;
+  }
+  .detail-close:hover{ color:var(--gold); border-color:var(--gold); }
+  .detail-grid{ display:grid; grid-template-columns:1fr; }
+  @media(min-width:680px){ .detail-grid{ grid-template-columns:1fr 1fr; } }
+  .detail-image{
+    aspect-ratio:1/1; position:relative; background:var(--surface);
+    border-bottom:1px solid var(--surface-line);
+  }
+  @media(min-width:680px){ .detail-image{ border-bottom:none; border-right:1px solid var(--surface-line); } }
+  .detail-info{ padding:28px 26px; }
+  .detail-info h2{ font-size:22px; margin:2px 0 4px; text-transform:none; letter-spacing:0; font-family:'Work Sans',sans-serif; font-weight:600; }
   .out-badge{
     position:absolute; top:8px; left:8px;
     background:var(--gold); color:var(--gold-text);
@@ -525,6 +579,10 @@
     <button class="btn-checkout" id="checkoutBtn" disabled style="background:none; border:1px solid var(--surface-line); color:var(--text);">Coordinar por WhatsApp</button>
   </div>
 </aside>
+
+<!-- Detalle de producto (modal) -->
+<div class="detail-overlay" id="detailOverlay"></div>
+<div class="detail-modal" id="detailModal"></div>
 
 <div style="position:relative;">
 <div class="trail" aria-hidden="true"></div>
@@ -712,7 +770,18 @@
   1. Crea una hoja de Google Sheets con EXACTAMENTE estas columnas
      en la primera fila (mismos nombres, sin tildes):
 
-     nombre | categoria | subcategoria | color | referencia | talla | stock | precio_detal | precio_mayorista | imagenes_url | disponible | link_pago_mercadopago | link_pago_payu
+     nombre | marca | modelo | categoria | subcategoria | color | referencia | talla | stock | precio_detal | precio_original | precio_mayorista | imagenes_url | disponible | link_pago_mercadopago | link_pago_payu
+
+     - marca: el fabricante/marca del producto (ej. Hugo Boss). Se
+       muestra separado del nombre en la web.
+     - modelo: úsalo SOLO si el mismo artículo viene en varios colores
+       y quieres que aparezcan juntos en una tarjeta con selector de
+       color (como en Falabella). Pon el MISMO código en todas las
+       filas de esos colores (ej. MOD-CAMISA-LINO). Si el producto es
+       de un solo color, déjalo vacío — se comporta como antes.
+     - precio_original: opcional. Si hay promoción, pon aquí el precio
+       anterior — la web calcula el % de descuento sola y muestra el
+       precio anterior tachado. Vacío si no hay promoción.
 
      Cada FILA es un diseño en UNA talla (no un producto completo).
      Si te llegan 50 jeans en 5 diseños con 5 tallas cada uno, son 25
@@ -770,7 +839,7 @@
   ============================================================
 -->
 <script>
-  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOj24Kz7KJEekrQTZ8zQxp0hZGh_5O_sGBzzFBYIukL2YEudw260umvNjSdK4OAQ/pub?gid=879996903&single=true&output=csv";
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOj24Kz7KJEekrQTZ8zQxp0hZGh_5O_sGBzzFBYIukL2YEudw260umvNjSdK4OAQ/pub?gid=1409351174&single=true&output=csv";
 
   // Taxonomía de categorías y subcategorías. Las claves están en
   // minúsculas sin tildes para comparar de forma flexible con lo que
@@ -875,35 +944,54 @@
   // Cada fila de la hoja es una variante (un diseño + una talla + su stock).
   // Esta función las agrupa por 'referencia' para armar una sola tarjeta de
   // producto por diseño, con todas sus tallas y el stock de cada una.
+  // Agrupa las filas en 2 niveles:
+  // 1) "modelo" (el artículo en general, ej. una camiseta que viene en
+  //    varios colores) — si la columna modelo está vacía, se usa la
+  //    referencia como si cada color fuera su propio modelo.
+  // 2) dentro de cada modelo, cada "color" tiene su propio precio,
+  //    fotos y lista de tallas con stock.
   function groupProducts(rows){
-    const map = new Map();
+    const modeloMap = new Map();
     rows.forEach(r => {
-      const key = r.referencia || r.nombre;
-      if (!key) return;
-      if (!map.has(key)){
-        map.set(key, {
-          _id: map.size,
-          referencia: r.referencia,
+      const modeloKey = r.modelo || r.referencia || r.nombre;
+      if (!modeloKey) return;
+      if (!modeloMap.has(modeloKey)){
+        modeloMap.set(modeloKey, {
+          _id: modeloMap.size,
+          modelo: modeloKey,
+          marca: r.marca,
           nombre: r.nombre,
           categoria: r.categoria,
           subcategoria: r.subcategoria,
-          color: r.color,
-          precio_detal: r.precio_detal,
-          precio_mayorista: r.precio_mayorista,
-          imagenes_url: r.imagenes_url || r.imagen_url,
           disponible: r.disponible,
-          link_pago_mercadopago: r.link_pago_mercadopago,
-          link_pago_payu: r.link_pago_payu,
-          variants: []
+          colors: new Map(),
         });
       }
-      const group = map.get(key);
+      const group = modeloMap.get(modeloKey);
+      const colorKey = r.color || 'Único';
+      if (!group.colors.has(colorKey)){
+        group.colors.set(colorKey, {
+          color: colorKey,
+          referencia: r.referencia,
+          precio_detal: r.precio_detal,
+          precio_original: r.precio_original,
+          precio_mayorista: r.precio_mayorista,
+          imagenes_url: r.imagenes_url || r.imagen_url,
+          link_pago_mercadopago: r.link_pago_mercadopago,
+          link_pago_payu: r.link_pago_payu,
+          variants: [],
+        });
+      }
+      const colorGroup = group.colors.get(colorKey);
       const stockNum = parseInt(String(r.stock).replace(/[^\d-]/g, ''), 10);
       if (r.talla){
-        group.variants.push({ talla: r.talla, stock: isNaN(stockNum) ? 0 : stockNum });
+        colorGroup.variants.push({ talla: r.talla, stock: isNaN(stockNum) ? 0 : stockNum });
       }
     });
-    return Array.from(map.values());
+    return Array.from(modeloMap.values()).map(g => ({
+      ...g,
+      colors: Array.from(g.colors.values()),
+    }));
   }
 
   function goToCategoria(catKey){
@@ -994,8 +1082,113 @@
     card.addEventListener('click', () => goToCategoria(normalize(card.dataset.gotoCat)));
   });
 
-  const selection = {}; // { productId: { talla, qty } }
-  let cart = []; // { id, nombre, referencia, color, talla, precio_detal, imagen_url, qty }
+  const selection = {}; // { productId: { colorIndex, talla, qty, imgIndex } }
+  let cart = []; // { id, nombre, marca, referencia, color, talla, precio_detal, imagen_url, qty }
+  let openProductId = null; // producto abierto en el modal de detalle, o null
+
+  function getSelection(p){
+    if (!selection[p._id]) selection[p._id] = { colorIndex: 0, talla: null, qty: 1, imgIndex: 0 };
+    return selection[p._id];
+  }
+
+  // Arma el contenido interno (imagen + info) de un producto. Lo usan
+  // tanto la tarjeta chica de la grilla como el modal grande de detalle,
+  // así ambos quedan siempre sincronizados con el mismo estado.
+  function buildProductParts(p){
+    const sel = getSelection(p);
+    const activeColor = p.colors[sel.colorIndex] || p.colors[0];
+
+    const hasStock = activeColor.variants.some(v => v.stock > 0);
+    const manualDisponible = (p.disponible || 'si').toLowerCase() !== 'no';
+    const disponible = manualDisponible && hasStock;
+
+    const images = (activeColor.imagenes_url || '').split(',').map(u => u.trim()).filter(Boolean);
+
+    let imageInner;
+    if (images.length){
+      const current = images[sel.imgIndex] || images[0];
+      imageInner = `<img src="${current}" alt="${p.nombre}" style="width:100%;height:100%;object-fit:cover;">`;
+      if (images.length > 1){
+        imageInner += `
+          <button class="img-nav prev" data-id="${p._id}" type="button">‹</button>
+          <button class="img-nav next" data-id="${p._id}" type="button">›</button>
+          <div class="img-dots" data-id="${p._id}">
+            ${images.map((_, i) => `<span class="img-dot ${i === sel.imgIndex ? 'active' : ''}" data-idx="${i}"></span>`).join('')}
+          </div>`;
+      }
+    } else {
+      imageInner = `<span>AQUÍ TU FOTO<br>(fondo blanco o neutro)</span>`;
+    }
+
+    const colorsHTML = p.colors.length > 1
+      ? `<div class="color-row" data-id="${p._id}">${p.colors.map((c, i) =>
+          `<span class="color-pill ${i === sel.colorIndex ? 'selected' : ''}" data-coloridx="${i}">${c.color}</span>`
+        ).join('')}</div>`
+      : '';
+
+    const tallasHTML = activeColor.variants.length
+      ? `<div class="size-row" data-id="${p._id}">${activeColor.variants.map(v => {
+          const outOfStock = v.stock <= 0;
+          return `<span class="size-pill ${sel.talla === v.talla ? 'selected' : ''} ${outOfStock ? 'disabled' : ''}" data-talla="${v.talla}" ${outOfStock ? 'data-disabled="1"' : ''}>${v.talla}</span>`;
+        }).join('')}</div>`
+      : '';
+
+    const selectedVariant = activeColor.variants.find(v => v.talla === sel.talla);
+    const maxQty = selectedVariant ? selectedVariant.stock : 1;
+    if (selectedVariant && sel.qty > maxQty) sel.qty = Math.max(1, maxQty);
+
+    const canAdd = disponible && selectedVariant && selectedVariant.stock > 0;
+
+    // Precio y descuento
+    const curPrice = parseInt(String(activeColor.precio_detal).replace(/[^\d]/g, ''), 10);
+    const origPrice = parseInt(String(activeColor.precio_original || '').replace(/[^\d]/g, ''), 10);
+    let priceHTML;
+    if (origPrice && curPrice && origPrice > curPrice){
+      const pct = Math.round((1 - curPrice / origPrice) * 100);
+      priceHTML = `
+        <div class="price-discount-row">
+          <span class="discount-badge">-${pct}%</span>
+          <span class="price">${money(curPrice)}</span>
+          <span class="price-original">${money(origPrice)}</span>
+        </div>`;
+    } else {
+      priceHTML = `
+        <div class="price-row">
+          <span class="price">${money(activeColor.precio_detal) || 'Consultar'}</span>
+          <span class="price-label">Detal</span>
+        </div>`;
+    }
+
+    const infoHTML = `
+      ${p.marca ? `<span class="product-brand">${p.marca}</span>` : ''}
+      <h4 class="product-name-link" data-id="${p._id}">${p.nombre || 'Producto'}</h4>
+      <span class="ref">Ref. ${activeColor.referencia || '—'}</span>
+      <span class="product-color">Color: ${activeColor.color}</span>
+      ${priceHTML}
+      ${activeColor.precio_mayorista ? `<span class="price-wholesale">Mayorista: ${money(activeColor.precio_mayorista)}</span>` : `<span class="price-wholesale">Mayorista: pregúntanos</span>`}
+      ${colorsHTML}
+      ${tallasHTML}
+      ${disponible ? `
+      <div class="qty-row">
+        <div class="qty-stepper" data-id="${p._id}">
+          <button class="qty-minus" type="button">−</button>
+          <span>${sel.qty}</span>
+          <button class="qty-plus" type="button">+</button>
+        </div>
+        ${selectedVariant ? `<span style="font-size:10px; color:var(--text-muted); margin-left:8px;">${selectedVariant.stock} disponibles</span>` : ''}
+      </div>
+      <button class="add-cart-btn" data-id="${p._id}" ${canAdd ? '' : 'disabled'}>
+        ${!sel.talla ? 'Elige una talla' : 'Agregar al carrito'}
+      </button>
+      ${(activeColor.link_pago_mercadopago || activeColor.link_pago_payu) ? `
+      <a class="buy-now-btn" href="${activeColor.link_pago_mercadopago || activeColor.link_pago_payu}" target="_blank" rel="noopener">
+        Comprar ahora con tarjeta
+      </a>
+      <span style="font-size:10px; color:var(--text-muted); display:block; margin-top:6px; text-align:center;">Escribe la talla (${sel.talla || activeColor.variants[0].talla}) en el campo de referencia del pago</span>` : ''}` : ''}
+    `;
+
+    return { imageInner, infoHTML, disponible };
+  }
 
   function renderProducts(){
     const grid = document.getElementById('productGrid');
@@ -1010,94 +1203,62 @@
     }
 
     grid.innerHTML = list.map(p => {
-      const hasStock = p.variants.some(v => v.stock > 0);
-      const manualDisponible = (p.disponible || 'si').toLowerCase() !== 'no';
-      const disponible = manualDisponible && hasStock;
-
-      const images = (p.imagenes_url || p.imagen_url || '')
-        .split(',')
-        .map(u => u.trim())
-        .filter(Boolean);
-
-      if (!selection[p._id]) selection[p._id] = { talla: null, qty: 1, imgIndex: 0 };
-      const sel = selection[p._id];
-      if (sel.imgIndex === undefined) sel.imgIndex = 0;
-
-      let img;
-      if (images.length){
-        const current = images[sel.imgIndex] || images[0];
-        img = `<img src="${current}" alt="${p.nombre}" style="width:100%;height:100%;object-fit:cover;">`;
-        if (images.length > 1){
-          img += `
-            <button class="img-nav prev" data-id="${p._id}" type="button">‹</button>
-            <button class="img-nav next" data-id="${p._id}" type="button">›</button>
-            <div class="img-dots" data-id="${p._id}">
-              ${images.map((_, i) => `<span class="img-dot ${i === sel.imgIndex ? 'active' : ''}" data-idx="${i}"></span>`).join('')}
-            </div>`;
-        }
-      } else {
-        img = `<span>AQUÍ TU FOTO<br>(fondo blanco o neutro)</span>`;
-      }
-
-      const tallasHTML = p.variants.length
-        ? `<div class="size-row" data-id="${p._id}">${p.variants.map(v => {
-            const outOfStock = v.stock <= 0;
-            return `<span class="size-pill ${sel.talla === v.talla ? 'selected' : ''} ${outOfStock ? 'disabled' : ''}" data-talla="${v.talla}" ${outOfStock ? 'data-disabled="1"' : ''}>${v.talla}</span>`;
-          }).join('')}</div>`
-        : '';
-
-      const selectedVariant = p.variants.find(v => v.talla === sel.talla);
-      const maxQty = selectedVariant ? selectedVariant.stock : 1;
-      if (selectedVariant && sel.qty > maxQty) sel.qty = Math.max(1, maxQty);
-
-      const canAdd = disponible && selectedVariant && selectedVariant.stock > 0;
-
+      const { imageInner, infoHTML, disponible } = buildProductParts(p);
       return `
         <div class="product-card ${disponible ? '' : 'out-of-stock'}" style="position:relative;">
           ${disponible ? '' : '<span class="out-badge">Agotado</span>'}
-          <div class="ph-image">${img}</div>
-          <div class="product-info">
-            <h4>${p.nombre || 'Producto'}</h4>
-            <span class="ref">Ref. ${p.referencia || '—'}</span>
-            ${p.color ? `<span class="product-color">Color: ${p.color}</span>` : ''}
-            <div class="price-row">
-              <span class="price">${money(p.precio_detal) || 'Consultar'}</span>
-              <span class="price-label">Detal</span>
-            </div>
-            ${p.precio_mayorista ? `<span class="price-wholesale">Mayorista: ${money(p.precio_mayorista)}</span>` : `<span class="price-wholesale">Mayorista: pregúntanos</span>`}
-            ${tallasHTML}
-            ${disponible ? `
-            <div class="qty-row">
-              <div class="qty-stepper" data-id="${p._id}">
-                <button class="qty-minus" type="button">−</button>
-                <span>${sel.qty}</span>
-                <button class="qty-plus" type="button">+</button>
-              </div>
-              ${selectedVariant ? `<span style="font-size:10px; color:var(--text-muted); margin-left:8px;">${selectedVariant.stock} disponibles</span>` : ''}
-            </div>
-            <button class="add-cart-btn" data-id="${p._id}" ${canAdd ? '' : 'disabled'}>
-              ${!sel.talla ? 'Elige una talla' : 'Agregar al carrito'}
-            </button>
-            ${(p.link_pago_mercadopago || p.link_pago_payu) ? `
-            <a class="buy-now-btn" href="${p.link_pago_mercadopago || p.link_pago_payu}" target="_blank" rel="noopener">
-              Comprar ahora con tarjeta
-            </a>
-            <span style="font-size:10px; color:var(--text-muted); display:block; margin-top:6px; text-align:center;">Escribe la talla (${sel.talla || p.variants[0].talla}) en el campo de referencia del pago</span>` : ''}` : ''}
-          </div>
+          <div class="ph-image open-detail" data-id="${p._id}">${imageInner}</div>
+          <div class="product-info">${infoHTML}</div>
         </div>`;
     }).join('');
+
+    if (openProductId !== null) renderDetailModal();
   }
 
-  // Selección de talla / cantidad (delegación de eventos)
-  document.getElementById('productGrid').addEventListener('click', (e) => {
+  function renderDetailModal(){
+    const p = allProducts.find(x => String(x._id) === String(openProductId));
+    const modal = document.getElementById('detailModal');
+    if (!p){ modal.innerHTML = ''; return; }
+    const { imageInner, disponible } = buildProductParts(p);
+    const parts = buildProductParts(p);
+    modal.innerHTML = `
+      <button class="detail-close" id="detailClose" type="button">&times;</button>
+      <div class="detail-grid">
+        <div class="detail-image">${parts.imageInner}</div>
+        <div class="detail-info">${parts.infoHTML}</div>
+      </div>`;
+  }
+
+  function openProductDetail(id){
+    openProductId = id;
+    renderDetailModal();
+    document.getElementById('detailOverlay').classList.add('open');
+    document.getElementById('detailModal').classList.add('open');
+  }
+  function closeProductDetail(){
+    openProductId = null;
+    document.getElementById('detailOverlay').classList.remove('open');
+    document.getElementById('detailModal').classList.remove('open');
+  }
+
+  // Delegación de eventos única: cubre tanto la grilla de productos
+  // como el modal de detalle, ya que ambos usan las mismas clases y
+  // el mismo data-id (el estado se comparte por producto).
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#detailClose') || e.target === document.getElementById('detailOverlay')){
+      closeProductDetail();
+      return;
+    }
+
     const prevBtn = e.target.closest('.img-nav.prev');
     const nextBtn = e.target.closest('.img-nav.next');
     const dot = e.target.closest('.img-dot');
     if (prevBtn || nextBtn){
       const id = (prevBtn || nextBtn).dataset.id;
       const p = allProducts.find(x => String(x._id) === String(id));
-      const images = (p.imagenes_url || p.imagen_url || '').split(',').map(u => u.trim()).filter(Boolean);
-      const sel = selection[id];
+      const sel = getSelection(p);
+      const activeColor = p.colors[sel.colorIndex] || p.colors[0];
+      const images = (activeColor.imagenes_url || '').split(',').map(u => u.trim()).filter(Boolean);
       const dir = nextBtn ? 1 : -1;
       sel.imgIndex = (sel.imgIndex + dir + images.length) % images.length;
       renderProducts();
@@ -1109,6 +1270,18 @@
       renderProducts();
       return;
     }
+
+    const colorPill = e.target.closest('.color-pill');
+    if (colorPill){
+      const id = colorPill.closest('.color-row').dataset.id;
+      selection[id].colorIndex = parseInt(colorPill.dataset.coloridx, 10);
+      selection[id].talla = null;
+      selection[id].qty = 1;
+      selection[id].imgIndex = 0;
+      renderProducts();
+      return;
+    }
+
     const pill = e.target.closest('.size-pill');
     if (pill){
       if (pill.dataset.disabled === '1') return;
@@ -1118,39 +1291,52 @@
       renderProducts();
       return;
     }
+
     const minus = e.target.closest('.qty-minus');
     const plus = e.target.closest('.qty-plus');
     if (minus || plus){
       const id = e.target.closest('.qty-stepper').dataset.id;
       const p = allProducts.find(x => String(x._id) === String(id));
-      const sel = selection[id];
-      const variant = p.variants.find(v => v.talla === sel.talla);
+      const sel = getSelection(p);
+      const activeColor = p.colors[sel.colorIndex] || p.colors[0];
+      const variant = activeColor.variants.find(v => v.talla === sel.talla);
       const max = variant ? variant.stock : 1;
       sel.qty = Math.min(max, Math.max(1, sel.qty + (plus ? 1 : -1)));
       renderProducts();
       return;
     }
+
     const addBtn = e.target.closest('.add-cart-btn');
     if (addBtn && !addBtn.disabled){
       const id = addBtn.dataset.id;
       const p = allProducts.find(x => String(x._id) === String(id));
-      const sel = selection[id];
+      const sel = getSelection(p);
       addToCart(p, sel.talla, sel.qty);
       selection[id].qty = 1;
       renderProducts();
+      return;
+    }
+
+    // Abrir el detalle grande al hacer clic en la foto o en el nombre
+    const opener = e.target.closest('.open-detail, .product-name-link');
+    if (opener){
+      openProductDetail(opener.dataset.id);
+      return;
     }
   });
 
   function addToCart(p, talla, qty){
-    const key = p._id + '|' + talla;
+    const sel = getSelection(p);
+    const activeColor = p.colors[sel.colorIndex] || p.colors[0];
+    const key = p._id + '|' + activeColor.color + '|' + talla;
     const existing = cart.find(c => c.key === key);
-    const images = (p.imagenes_url || p.imagen_url || '').split(',').map(u => u.trim()).filter(Boolean);
+    const images = (activeColor.imagenes_url || '').split(',').map(u => u.trim()).filter(Boolean);
     if (existing){
       existing.qty += qty;
     } else {
       cart.push({
-        key, id: p._id, nombre: p.nombre, referencia: p.referencia,
-        color: p.color, talla, precio_detal: p.precio_detal,
+        key, id: p._id, nombre: p.nombre, marca: p.marca, referencia: activeColor.referencia,
+        color: activeColor.color, talla, precio_detal: activeColor.precio_detal,
         imagen_url: images[0] || '', qty
       });
     }
@@ -1292,7 +1478,7 @@
     const lines = ['Hola, quiero hacer este pedido en Huella Universal:', ''];
     cart.forEach(c => {
       const sku = `${c.referencia || 'SIN-REF'}-${c.talla || ''}`;
-      lines.push(`• ${c.nombre}${c.color ? ' - ' + c.color : ''}${c.talla ? ' - Talla ' + c.talla : ''} x${c.qty} — ${money(c.precio_detal)}`);
+      lines.push(`• ${c.marca ? c.marca + ' - ' : ''}${c.nombre}${c.color ? ' - ' + c.color : ''}${c.talla ? ' - Talla ' + c.talla : ''} x${c.qty} — ${money(c.precio_detal)}`);
       lines.push(`  Ref: ${sku}`);
       if (c.imagen_url){
         lines.push(`  Foto: ${c.imagen_url}`);
@@ -1375,6 +1561,10 @@
       console.error(err);
     }
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && openProductId !== null) closeProductDetail();
+  });
 
   loadCatalog();
 </script>
