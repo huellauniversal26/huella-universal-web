@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Escáner de ventas — Huella Universal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  body{
+    background:#111111; color:#FFFFFF; font-family:'Work Sans',sans-serif;
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .box{ width:100%; max-width:420px; }
+  h1{
+    font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:0.03em;
+    font-size:22px; text-align:center; margin-bottom:6px;
+  }
+  .sub{ text-align:center; color:#BDBDBD; font-size:13px; margin-bottom:28px; }
+
+  /* --- Pantalla de PIN --- */
+  #pinScreen input{
+    width:100%; background:#1C1C1C; border:1px solid #2E2E2E; color:#FFFFFF;
+    font-family:'IBM Plex Mono',monospace; font-size:22px; text-align:center;
+    letter-spacing:0.3em; padding:16px; border-radius:2px; margin-bottom:14px;
+  }
+  #pinScreen input:focus{ outline:none; border-color:#D4AF37; }
+  .btn{
+    display:block; width:100%; background:#D4AF37; color:#111111; border:none;
+    font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:14px;
+    text-transform:uppercase; letter-spacing:0.04em; padding:15px; border-radius:2px; cursor:pointer;
+  }
+  .btn:active{ background:#B4922C; }
+  .error-msg{ color:#e07856; font-size:13px; text-align:center; margin-top:12px; min-height:18px; }
+
+  /* --- Pantalla de escaneo --- */
+  #scanScreen{ display:none; }
+  #skuInput{
+    width:100%; background:#1C1C1C; border:2px solid #D4AF37; color:#FFFFFF;
+    font-family:'IBM Plex Mono',monospace; font-size:18px; text-align:center;
+    padding:18px; border-radius:2px; margin-bottom:8px;
+  }
+  #skuInput:focus{ outline:none; }
+  .hint{ text-align:center; color:#6B6B6B; font-size:11px; margin-bottom:24px; font-family:'IBM Plex Mono',monospace; }
+
+  .result-card{
+    background:#1C1C1C; border:1px solid #2E2E2E; border-radius:2px; padding:20px;
+    margin-bottom:16px; display:none;
+  }
+  .result-card.show{ display:block; }
+  .result-card.ok{ border-color:#3a5a3a; }
+  .result-card.warn{ border-color:#D4AF37; }
+  .result-card.err{ border-color:#c0392b; }
+  .result-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; }
+  .result-title.ok{ color:#7ac47a; }
+  .result-title.warn{ color:#D4AF37; }
+  .result-title.err{ color:#e07856; }
+  .result-name{ font-size:17px; font-weight:600; margin-bottom:4px; }
+  .result-meta{ color:#BDBDBD; font-size:13px; margin-bottom:2px; }
+  .result-price{ font-family:'IBM Plex Mono',monospace; color:#D4AF37; font-size:18px; margin-top:8px; }
+
+  .log{ max-height:220px; overflow-y:auto; }
+  .log-item{
+    display:flex; justify-content:space-between; gap:10px;
+    padding:8px 0; border-bottom:1px solid #2E2E2E; font-size:12px; color:#BDBDBD;
+  }
+  .log-item b{ color:#FFFFFF; }
+  .log-empty{ text-align:center; color:#6B6B6B; font-size:12px; padding:20px 0; }
+  .log-label{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:#6B6B6B; text-transform:uppercase; letter-spacing:0.05em; margin:20px 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <h1>Huella Universal</h1>
+  <p class="sub">Escáner de ventas — tienda física</p>
+
+  <div id="pinScreen">
+    <input type="password" id="pinInput" inputmode="numeric" placeholder="PIN" autocomplete="off">
+    <button class="btn" id="pinBtn" type="button">Entrar</button>
+    <p class="error-msg" id="pinError"></p>
+  </div>
+
+  <div id="scanScreen">
+    <input type="text" id="skuInput" placeholder="Escanea un código..." autocomplete="off">
+    <p class="hint">Apunta el lector al código de barras — se registra solo</p>
+
+    <div class="result-card" id="resultCard">
+      <div class="result-title" id="resultTitle"></div>
+      <div class="result-name" id="resultName"></div>
+      <div class="result-meta" id="resultMeta"></div>
+      <div class="result-price" id="resultPrice"></div>
+    </div>
+
+    <div class="log-label">Ventas de esta sesión</div>
+    <div class="log" id="sessionLog">
+      <div class="log-empty">Aún no has escaneado nada</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const PIN_KEY = 'huella_scanner_pin';
+  const sessionSales = [];
+
+  function showScanScreen(){
+    document.getElementById('pinScreen').style.display = 'none';
+    document.getElementById('scanScreen').style.display = 'block';
+    const input = document.getElementById('skuInput');
+    input.focus();
+    // Mantener el foco siempre en el campo de escaneo
+    document.addEventListener('click', () => input.focus());
+  }
+
+  // Si ya se guardó un PIN válido en esta sesión del navegador, saltar directo
+  const savedPin = sessionStorage.getItem(PIN_KEY);
+  if (savedPin){
+    showScanScreen();
+  }
+
+  document.getElementById('pinBtn').addEventListener('click', submitPin);
+  document.getElementById('pinInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitPin();
+  });
+
+  function submitPin(){
+    const pin = document.getElementById('pinInput').value.trim();
+    if (!pin){
+      document.getElementById('pinError').textContent = 'Escribe el PIN';
+      return;
+    }
+    sessionStorage.setItem(PIN_KEY, pin);
+    document.getElementById('pinError').textContent = '';
+    showScanScreen();
+  }
+
+  function money(v){
+    const n = parseInt(String(v).replace(/[^\d]/g, ''), 10);
+    if (isNaN(n)) return '';
+    return '$' + n.toLocaleString('es-CO');
+  }
+
+  function showResult(type, title, name, meta, price){
+    const card = document.getElementById('resultCard');
+    card.className = 'result-card show ' + type;
+    document.getElementById('resultTitle').className = 'result-title ' + type;
+    document.getElementById('resultTitle').textContent = title;
+    document.getElementById('resultName').textContent = name;
+    document.getElementById('resultMeta').textContent = meta;
+    document.getElementById('resultPrice').textContent = price;
+  }
+
+  function addToLog(sku, nombre, precio, ok){
+    sessionSales.unshift({ sku, nombre, precio, ok, hora: new Date().toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit'}) });
+    const log = document.getElementById('sessionLog');
+    log.innerHTML = sessionSales.map(s => `
+      <div class="log-item">
+        <span><b>${s.nombre}</b> · ${s.sku}</span>
+        <span>${s.ok ? money(s.precio) : '✕'} · ${s.hora}</span>
+      </div>
+    `).join('');
+  }
+
+  const skuInput = document.getElementById('skuInput');
+  let processing = false;
+
+  skuInput.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter') return;
+    const sku = skuInput.value.trim();
+    skuInput.value = '';
+    if (!sku || processing) return;
+    processing = true;
+
+    showResult('warn', 'Buscando...', sku, '', '');
+
+    try {
+      const res = await fetch('/api/registrar-venta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sku, cantidad: 1, pin: sessionStorage.getItem(PIN_KEY) })
+      });
+      const data = await res.json();
+
+      if (res.status === 401){
+        // PIN guardado ya no sirve — pedirlo de nuevo
+        sessionStorage.removeItem(PIN_KEY);
+        showResult('err', 'PIN incorrecto', 'Vuelve a escribir el PIN', '', '');
+        setTimeout(() => location.reload(), 1500);
+        processing = false;
+        return;
+      }
+
+      if (!res.ok){
+        showResult('err', 'No se pudo registrar', data.error || 'Error desconocido', sku, '');
+        addToLog(sku, data.error || 'Error', 0, false);
+        processing = false;
+        skuInput.focus();
+        return;
+      }
+
+      const metaParts = [];
+      if (data.color) metaParts.push(data.color);
+      if (data.talla) metaParts.push('Talla ' + data.talla);
+      const meta = metaParts.join(' · ');
+
+      if (data.stock_bajo){
+        showResult('warn', '✓ Venta registrada — stock en 0', data.nombre, meta, money(data.precio));
+      } else {
+        showResult('ok', '✓ Venta registrada', data.nombre, meta, money(data.precio));
+      }
+      addToLog(sku, data.nombre, data.precio, true);
+
+    } catch (err){
+      showResult('err', 'Error de conexión', 'Intenta de nuevo', sku, '');
+      console.error(err);
+    }
+
+    processing = false;
+    skuInput.focus();
+  });
+</script>
+
+</body>
+</html>
