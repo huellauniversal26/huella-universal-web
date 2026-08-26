@@ -574,7 +574,8 @@
       <span id="cartTotal">$0</span>
     </div>
     <p class="cart-note" id="payError" style="display:none; color:var(--gold);"></p>
-    <button class="btn-checkout" id="payCardBtn" disabled>Pagar ahora con tarjeta</button>
+    <button class="btn-checkout" id="payCardBtn" disabled>Pagar ahora con Mercado Pago</button>
+    <button class="btn-checkout" id="payPayuBtn" disabled style="margin-top:10px; background:none; border:1px solid var(--gold); color:var(--gold);">Pagar ahora con PayU</button>
     <p class="cart-note" style="margin-top:12px; margin-bottom:8px;">¿Prefieres transferencia, Nequi o contraentrega?</p>
     <button class="btn-checkout" id="checkoutBtn" disabled style="background:none; border:1px solid var(--surface-line); color:var(--text);">Coordinar por WhatsApp</button>
   </div>
@@ -1181,9 +1182,14 @@
         ${!sel.talla ? 'Elige una talla' : 'Agregar al carrito'}
       </button>
       ${(activeColor.link_pago_mercadopago || activeColor.link_pago_payu) ? `
-      <a class="buy-now-btn" href="${activeColor.link_pago_mercadopago || activeColor.link_pago_payu}" target="_blank" rel="noopener">
-        Comprar ahora con tarjeta
-      </a>
+      ${activeColor.link_pago_mercadopago ? `
+      <a class="buy-now-btn" href="${activeColor.link_pago_mercadopago}" target="_blank" rel="noopener">
+        Comprar con Mercado Pago
+      </a>` : ''}
+      ${activeColor.link_pago_payu ? `
+      <a class="buy-now-btn" href="${activeColor.link_pago_payu}" target="_blank" rel="noopener" style="margin-top:6px;">
+        Comprar con PayU
+      </a>` : ''}
       <span style="font-size:10px; color:var(--text-muted); display:block; margin-top:6px; text-align:center;">Escribe la talla (${sel.talla || activeColor.variants[0].talla}) en el campo de referencia del pago</span>` : ''}` : ''}
     `;
 
@@ -1354,12 +1360,14 @@
     const totalEl = document.getElementById('cartTotal');
     const checkoutBtn = document.getElementById('checkoutBtn');
     const payCardBtn = document.getElementById('payCardBtn');
+    const payPayuBtn = document.getElementById('payPayuBtn');
     const count = cart.reduce((s,c) => s + c.qty, 0);
 
     badge.textContent = count;
     badge.style.display = count ? 'flex' : 'none';
     checkoutBtn.disabled = cart.length === 0;
     payCardBtn.disabled = cart.length === 0;
+    payPayuBtn.disabled = cart.length === 0;
 
     if (!cart.length){
       body.innerHTML = '<div class="cart-empty">Tu carrito está vacío</div>';
@@ -1533,6 +1541,60 @@
       }
     } catch (err){
       errBox.textContent = 'No se pudo conectar con la pasarela de pago. Intenta de nuevo o usa la opción de WhatsApp abajo.';
+      errBox.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = originalText;
+      console.error(err);
+    }
+  });
+
+  document.getElementById('payPayuBtn').addEventListener('click', async () => {
+    if (!cart.length) return;
+    const customer = validateCustomerForm();
+    if (!customer) return;
+    const btn = document.getElementById('payPayuBtn');
+    const errBox = document.getElementById('payError');
+    errBox.style.display = 'none';
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Conectando con PayU…';
+
+    try {
+      const items = cart.map(c => ({
+        id: `${c.referencia || ''}-${c.talla || ''}`,
+        title: `${c.nombre}${c.color ? ' - ' + c.color : ''}${c.talla ? ' - Talla ' + c.talla : ''}`,
+        quantity: c.qty,
+        unit_price: parseInt(String(c.precio_detal).replace(/[^\d]/g, ''), 10)
+      }));
+
+      const res = await fetch('/api/create-payu-form', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, customer })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.actionUrl || !data.fields){
+        throw new Error(data.error || 'No se pudo iniciar el pago');
+      }
+
+      // PayU exige un envío de formulario POST real (no un simple link),
+      // así que lo armamos al vuelo y lo enviamos — el navegador queda
+      // redirigido a la pantalla de pago de PayU.
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = data.actionUrl;
+      Object.entries(data.fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+    } catch (err){
+      errBox.textContent = 'No se pudo conectar con PayU. Intenta de nuevo o usa la opción de WhatsApp abajo.';
       errBox.style.display = 'block';
       btn.disabled = false;
       btn.textContent = originalText;
