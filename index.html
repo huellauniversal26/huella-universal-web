@@ -827,19 +827,23 @@
        (esto no requiere servidor).
 
 
-  2. En Google Sheets: Archivo → Compartir → Publicar en la Web
-     → selecciona la hoja → formato "Valores separados por comas (.csv)"
-     → Publicar. Copia el link que te da.
+  2. Comparte la hoja con el correo del robot como Editor y configura
+     GOOGLE_SHEET_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL y GOOGLE_SERVICE_ACCOUNT_KEY
+     en Vercel.
 
-  3. Pega ese link abajo en SHEET_CSV_URL, reemplazando el texto
-     "PEGA_AQUI_TU_LINK_CSV".
+  3. No necesitas "Publicar en la Web": el servidor lee la hoja de forma
+     privada mediante la API de Google Sheets.
 
-  Cada vez que edites la hoja de Sheets, la página se actualiza sola
-  la próxima vez que alguien la abra (no hace falta tocar el código).
+  Cada vez que edites la hoja de Sheets, el catálogo consulta los datos
+  actuales cuando se abre la página.
   ============================================================
 -->
 <script>
-  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1sQHIojw3o6L9NMxLQ4z1_rzI_5RiA8HP/edit?usp=drivesdk&ouid=110506047240531314217&rtpof=true&sd=true";
+  // El catálogo se carga desde el servidor (/api/inventory).
+  // El servidor lee la pestaña "Inventario" de Google Sheets usando
+  // las variables GOOGLE_SHEET_ID y las credenciales del robot configuradas en Vercel.
+  // Ya NO es necesario publicar la hoja en la web ni usar un enlace CSV.
+  const INVENTORY_API_URL = "/api/inventory";
 
   // Taxonomía de categorías y subcategorías. Las claves están en
   // minúsculas sin tildes para comparar de forma flexible con lo que
@@ -1603,23 +1607,28 @@
 
   async function loadCatalog(){
     const state = document.getElementById('catState');
-    if (SHEET_CSV_URL.includes('PEGA_AQUI_TU_LINK_CSV')){
-      state.textContent = 'Aún no has conectado tu hoja de Google Sheets — revisa las instrucciones al final del código (SHEET_CSV_URL).';
-      state.classList.add('error');
-      return;
-    }
     try {
-      const cacheBuster = (SHEET_CSV_URL.includes('?') ? '&' : '?') + '_ts=' + Date.now();
-      const res = await fetch(SHEET_CSV_URL + cacheBuster, { cache: 'no-store' });
-      if (!res.ok) throw new Error('No se pudo cargar la hoja');
-      const text = await res.text();
-      const rows = parseCSV(text);
+      const res = await fetch(INVENTORY_API_URL + '?_ts=' + Date.now(), {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' }
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'No se pudo cargar el inventario');
+      }
+
+      const rows = data.rows || [];
+      if (!rows.length) {
+        throw new Error('La pestaña Inventario está vacía o no contiene datos.');
+      }
+
       allProducts = groupProducts(rowsToProducts(rows));
       renderCatalogView();
     } catch (err){
-      state.textContent = 'No se pudo cargar el catálogo. Revisa que el link de Google Sheets esté publicado correctamente.';
+      state.textContent = 'No se pudo cargar el catálogo. ' + (err.message || 'Revisa la conexión con Google Sheets.');
       state.classList.add('error');
-      console.error(err);
+      console.error('Error cargando catálogo:', err);
     }
   }
 
